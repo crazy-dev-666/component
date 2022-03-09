@@ -104,34 +104,37 @@ public class ExceptionListener {
 
         private void dealEvent(ExceptionEvent event) {
             long now = event.getTimestamp();
-            boolean intervalFirst;
-            boolean overThreshold;
+            boolean intervalFirst = false;
+            boolean overThreshold = false;
             String frequency = "";
 
             synchronized(this) {
-
+                total++;
                 //间隔大于设定 重置
                 if (lastTime + properties.getInterval().toMillis() < now) {
-                    intervalTotal = 0;
-                    lastTime = now;
-                }
+                    Duration interval;
+                    if (lastTime <= 0){
+                        interval = properties.getInterval();
+                    }else {
+                        interval = Duration.ofMillis(now - lastTime);
+                    }
 
-                intervalTotal++;
-                total++;
+                    frequency = format(interval) + "内首次出现（总累计 " + total + " 次出现）";
 
-                intervalFirst = intervalTotal == 1;
-                overThreshold = intervalTotal >= properties.getThreshold();
-
-                if (intervalFirst) {
-                    frequency = format(properties.getInterval()) + "内第一次出现（总累计 " + total + " 次出现）";
-                }
-
-                //间隔内累计次数达到阈值 重置
-                if (overThreshold) {
-                    frequency = format(Duration.ofMillis(now - lastTime)) + "内累计 " + intervalTotal + " 次出现（总累计 " + total + " 次出现）";
                     intervalTotal = 1;
                     lastTime = now;
+                    intervalFirst = true;
+                }else {
+                    intervalTotal++;
+                    overThreshold = intervalTotal >= properties.getThreshold();
+                    //间隔内累计次数达到阈值 重置
+                    if (overThreshold) {
+                        frequency = format(Duration.ofMillis(now - lastTime)) + "内累计 " + intervalTotal + " 次出现（总累计 " + total + " 次出现）";
+                        intervalTotal = 1;
+                        lastTime = now;
+                    }
                 }
+
             }
 
             if (intervalFirst || overThreshold){
