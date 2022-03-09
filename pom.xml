@@ -5,6 +5,7 @@
     <packaging>pom</packaging>
     <modules>
         <module>request-log-boot-starter</module>
+        <module>error-email-notice-boot-starter</module>
     </modules>
     <parent>
         <groupId>org.springframework.boot</groupId>
