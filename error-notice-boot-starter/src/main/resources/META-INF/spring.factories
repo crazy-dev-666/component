@@ -1,0 +1,2 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+cn.dev666.component.error.notice.config.ErrorNoticeAutoConfiguration
