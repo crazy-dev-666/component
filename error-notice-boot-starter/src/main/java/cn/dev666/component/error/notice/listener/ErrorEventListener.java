@@ -1,28 +1,30 @@
 package cn.dev666.component.error.notice.listener;
 
+import cn.dev666.component.error.notice.channel.Channel;
 import cn.dev666.component.error.notice.config.ErrorNoticeProperties;
+import cn.dev666.component.error.notice.content.Content;
+import cn.dev666.component.error.notice.content.ContentResult;
+import cn.dev666.component.error.notice.content.DefaultContentImpl;
 import cn.dev666.component.error.notice.event.DefaultErrorEvent;
-import cn.dev666.component.error.notice.mail.MailService;
+import cn.dev666.component.error.notice.event.ErrorEvent;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.InitializingBean;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.text.MessageFormat;
-import java.text.SimpleDateFormat;
+import java.lang.reflect.ParameterizedType;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
-public class ErrorEventListener {
+public class ErrorEventListener implements InitializingBean, ApplicationContextAware {
 
     //累计产生1w次错误后，进行清理操作
     private static final int CLEAN_THRESHOLD = 10000;
@@ -35,22 +37,51 @@ public class ErrorEventListener {
     //实时错误信息。
     private Map<String, ErrorInfo> errorInfoMap = new HashMap<>();
 
+    private ApplicationContext applicationContext;
+
+    //通知渠道
+    private Set<Channel> channelSet = new HashSet<>();
+
+    private Map<Class, Content> eventContentMap = new HashMap<>();
+
+    private List<String> profiles;
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) {
+        this.applicationContext = applicationContext;
+    }
+
     private final ThreadPoolTaskExecutor eventExecutor;
 
     private final ErrorNoticeProperties properties;
 
-    private final List<String> profiles;
-
-    private final MailService mailService;
-
     private final String applicationName;
 
-    public ErrorEventListener(ThreadPoolTaskExecutor eventExecutor, ErrorNoticeProperties properties, List<String> profiles, MailService mailService, String applicationName) {
+
+    public ErrorEventListener(ThreadPoolTaskExecutor eventExecutor, ErrorNoticeProperties properties, String applicationName) {
         this.eventExecutor = eventExecutor;
         this.properties = properties;
-        this.profiles = profiles;
-        this.mailService = mailService;
         this.applicationName = applicationName;
+    }
+
+    @Override
+    public void afterPropertiesSet() {
+        applicationContext.getApplicationName();
+        this.profiles = Arrays.asList(applicationContext.getEnvironment().getActiveProfiles());
+        Map<String, Content> contentMap = applicationContext.getBeansOfType(Content.class);
+        for (Map.Entry<String, Content> entry : contentMap.entrySet()) {
+            Content value = entry.getValue();
+            ParameterizedType type = (ParameterizedType) value.getClass().getGenericSuperclass();
+            Class<?> eventClazz = (Class<?>) type.getActualTypeArguments()[0];
+            eventContentMap.put(eventClazz, value);
+        }
+
+        if (!eventContentMap.containsKey(DefaultErrorEvent.class)){
+            eventContentMap.put(DefaultErrorEvent.class, new DefaultContentImpl(profiles.toString(), applicationName));
+        }
+
+        Map<String, Channel> beans = applicationContext.getBeansOfType(Channel.class);
+        channelSet.addAll(beans.values());
     }
 
     /**
@@ -62,7 +93,7 @@ public class ErrorEventListener {
      * 场景：出现异常发送提醒，每小时提醒一次，如果1小时内异常出现超过阈值10次时，再次提醒
      */
     @EventListener
-    public void onApplicationEvent(DefaultErrorEvent event) {
+    public void onApplicationEvent(ErrorEvent event) {
 
         if (CollectionUtils.containsAny(properties.getIgnoreProfiles(), profiles)){
             return;
@@ -78,54 +109,39 @@ public class ErrorEventListener {
         DealEventResult result = info.dealEvent(now);
         if (result.remindFlag) {
 
-            String title = profiles + " 环境, "+ event.getType() +" 报警";
-            String finalContext = getContext(event, result);
-            sendEmail(event.getType(), title, finalContext);
+            ContentResult contentResult = null;
+            try {
+                Content content = eventContentMap.get(event.getClass());
 
-            //TODO 增加多种提醒方式
+                if (content == null){
+                    log.error("根据事件类型 {}，没有找到匹配的获取通知内容的 Bean", event.getClass().getName());
+                    return;
+                }
+
+                contentResult = content.get(event, result);
+            }catch (Exception e){
+                log.error("获取通知内容异常",e);
+                return;
+            }
+
+            ContentResult finalResult = contentResult;
+            for (Channel channel : channelSet) {
+                eventExecutor.execute(()->{
+                    long start = System.currentTimeMillis();
+                    try {
+                        channel.notice(finalResult);
+                    }catch (Exception e){
+                        log.error(channel.getClass().getName() + " 渠道通知异常", e);
+                    }finally {
+                        log.info("{} 渠道通知完成，耗时 {} ms ", channel.getClass().getName(), System.currentTimeMillis() - start);
+                    }
+                });
+            }
         }
         cleanCheck();
     }
 
-    private String getContext(DefaultErrorEvent event, DealEventResult result) {
-
-        String processId;
-        try {
-            RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
-            processId = bean.getName().split("@")[0];
-        }catch (Exception e){
-            processId = "-1";
-        }
-
-        Object[] commonArgs = new Object[]{getLocalIp(), processId, applicationName,
-                new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(event.getTimestamp())),
-                result.frequency};
-
-        String baseTemplate = "\n 机器IP  ：{0} \n 进程ID ：{1} \n 应用名称 ：{2} \n\n 错误时间 ：{3} \n 错误频次 ：{4} \n\n";
-        String baseContext = MessageFormat.format(baseTemplate, commonArgs);
-
-        Map<String, String> argsMap = event.getArgsMap();
-        StringBuilder sb = new StringBuilder();
-        if (argsMap != null && argsMap.size() > 0) {
-            for (Map.Entry<String, String> entry : argsMap.entrySet()) {
-                sb.append(" ").append(entry.getKey()).append(" : ").append(entry.getValue()).append(" \n");
-            }
-        }
-        return baseContext + sb.toString();
-    }
-
-    private boolean sendEmail(String scene, String title, String context) {
-        String[] to = properties.getEmail() == null ? null : properties.getEmail().getTo();
-        if (to != null && to.length == 0) {
-            log.debug("未发送场景 {} 错误邮件提醒，没有配置收件人", scene);
-            return false;
-        }
-        eventExecutor.execute(()-> mailService.send(to, properties.getEmail().getCc(),
-                title, context));
-        return true;
-    }
-
-    private String getKey(DefaultErrorEvent event) {
+    private String getKey(ErrorEvent event) {
         return event.getType() + ":" + event.getUniqueErrorCode();
     }
 
@@ -185,9 +201,9 @@ public class ErrorEventListener {
         }
     }
 
-
+    @Getter
     @AllArgsConstructor
-    private static class DealEventResult {
+    public static class DealEventResult {
         private boolean remindFlag;
         private String frequency;
     }
@@ -214,43 +230,4 @@ public class ErrorEventListener {
             }
         }
     }
-
-    /**
-     * 获取当前机器的IP
-     */
-    private static String getLocalIp() {
-        try {
-            InetAddress candidateAddress = null;
-            // 遍历所有的网络接口
-            for (Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces(); interfaces.hasMoreElements();) {
-                NetworkInterface anInterface = interfaces.nextElement();
-                // 在所有的接口下再遍历IP
-                for (Enumeration<InetAddress> addresses = anInterface.getInetAddresses(); addresses.hasMoreElements();) {
-                    InetAddress address = addresses.nextElement();
-                    // 排除loopback类型地址
-                    if (!address.isLoopbackAddress()) {
-                        if (address.isSiteLocalAddress()) {
-                            // 如果是site-local地址，就是它了
-                            return address.getHostAddress();
-                        } else if (candidateAddress == null) {
-                            // site-local类型的地址未被发现，先记录候选地址
-                            candidateAddress = address;
-                        }
-                    }
-                }
-            }
-            if (candidateAddress != null) {
-                return candidateAddress.getHostAddress();
-            }
-            // 如果没有发现 non-loopback地址.只能用最次选的方案
-            InetAddress jdkSuppliedAddress = InetAddress.getLocalHost();
-            if (jdkSuppliedAddress == null) {
-                return "";
-            }
-            return jdkSuppliedAddress.getHostAddress();
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
 }

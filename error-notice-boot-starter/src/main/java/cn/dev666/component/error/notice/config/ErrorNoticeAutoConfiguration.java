@@ -1,17 +1,17 @@
 package cn.dev666.component.error.notice.config;
 
+import cn.dev666.component.error.notice.channel.DefaultMailChannel;
 import cn.dev666.component.error.notice.enums.JvmType;
 import cn.dev666.component.error.notice.event.JvmResourceMonitor;
 import cn.dev666.component.error.notice.event.OsResourceMonitor;
 import cn.dev666.component.error.notice.listener.ErrorEventListener;
-import cn.dev666.component.error.notice.mail.MailService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.env.Environment;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
@@ -20,7 +20,6 @@ import org.springframework.util.StringUtils;
 import javax.annotation.Resource;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
-import java.util.Arrays;
 import java.util.concurrent.ThreadPoolExecutor;
 
 @Configuration
@@ -33,9 +32,6 @@ public class ErrorNoticeAutoConfiguration {
 
     @Value("${spring.application.name}")
     private String applicationName;
-
-    @Resource
-    private Environment environment;
 
     @Resource
     private ErrorNoticeProperties properties;
@@ -64,14 +60,15 @@ public class ErrorNoticeAutoConfiguration {
 
 
     @Bean
-    public MailService mailService(JavaMailSender mailSender){
-        return new MailService(mailSender, mailFrom);
+    @ConditionalOnBean(JavaMailSender.class)
+    @ConditionalOnProperty(value = "error.notice.email.to")
+    public DefaultMailChannel mailChannel(JavaMailSender mailSender){
+        return new DefaultMailChannel(mailSender, mailFrom, properties.getEmail());
     }
 
     @Bean
-    public ErrorEventListener exceptionListener(@Qualifier("exceptionEventExecutor") ThreadPoolTaskExecutor executor,
-                                                MailService mailService){
-        return new ErrorEventListener(executor, properties, Arrays.asList(environment.getActiveProfiles()), mailService, applicationName);
+    public ErrorEventListener exceptionListener(@Qualifier("exceptionEventExecutor") ThreadPoolTaskExecutor executor){
+        return new ErrorEventListener(executor, properties, applicationName);
     }
 
     @Bean
@@ -100,5 +97,7 @@ public class ErrorNoticeAutoConfiguration {
         }
         return new JvmResourceMonitor(scheduler, errorEventListener, properties.getJvm(), type);
     }
+
+
 
 }

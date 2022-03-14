@@ -41,28 +41,33 @@ public class ErrorNoticeProperties {
     private JvmResourceProperties jvm;
 
     /**
-     * 邮件发送方式配置
+     * 警告日志通知方式配置，默认不启用
+     */
+    private boolean warnLog = false;
+
+    /**
+     * 邮件通知方式配置
      */
     private EmailProperties email;
 
-
     /**
-     * 企业微信发送方式配置
+     * 企业微信通知方式配置
      */
     private WorkWxProperties workWx;
 
     /**
-     * 钉钉发送方式配置
+     * 钉钉通知方式配置
      */
     private DingDingProperties dingDing;
 
     /**
-     * 公众号发送方式配置
+     * 公众号通知方式配置
      */
     private WxProperties wx;
 
     @Data
     public static class EmailProperties {
+
         /**
          * 发送人列表
          */
