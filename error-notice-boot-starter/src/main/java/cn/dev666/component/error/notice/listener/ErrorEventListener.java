@@ -9,8 +9,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.ReflectionUtils;
 import org.springframework.util.StringUtils;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.text.MessageFormat;
@@ -86,18 +89,27 @@ public class ErrorEventListener {
     }
 
     private String getContext(DefaultErrorEvent event, DealEventResult result) {
-        Object[] commonArgs = new Object[]{getLocalIp(), applicationName,
+
+        String processId;
+        try {
+            RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
+            processId = bean.getVmName().split("@")[0];
+        }catch (Exception e){
+            processId = "-1";
+        }
+
+        Object[] commonArgs = new Object[]{getLocalIp(), applicationName, processId,
                 new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(event.getTimestamp())),
                 result.frequency};
 
-        String baseTemplate = "\n 机器IP  ：{0} \n 应用名称 ：{1} \n 错误时间 ：{2} \n 错误频次 ：{3} \n\n";
+        String baseTemplate = "\n 机器IP  ：{0} \n 应用名称 ：{1} \n 进程ID  ：{2} \n 错误时间 ：{3} \n 错误频次 ：{4} \n\n";
         String baseContext = MessageFormat.format(baseTemplate, commonArgs);
 
         Map<String, String> argsMap = event.getArgsMap();
         StringBuilder sb = new StringBuilder();
         if (argsMap != null && argsMap.size() > 0) {
             for (Map.Entry<String, String> entry : argsMap.entrySet()) {
-                sb.append(" ").append(entry.getKey()).append(" : ").append(entry.getValue()).append("\n");
+                sb.append(" ").append(entry.getKey()).append(" : ").append(entry.getValue()).append(" \n ");
             }
         }
         return baseContext + sb.toString();

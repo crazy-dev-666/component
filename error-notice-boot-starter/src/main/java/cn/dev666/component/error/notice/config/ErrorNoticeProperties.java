@@ -36,6 +36,11 @@ public class ErrorNoticeProperties {
     private OsResourceProperties os;
 
     /**
+     * JVM资源监控配置
+     */
+    private JvmResourceProperties jvm;
+
+    /**
      * 邮件发送方式配置
      */
     private EmailProperties email;
@@ -78,6 +83,43 @@ public class ErrorNoticeProperties {
 
     @Data
     public static class WxProperties {
+    }
+
+    @Data
+    public static class JvmResourceProperties {
+
+        private boolean enabled = true;
+        /**
+         * 监控频率，默认1分钟一次
+         */
+        private Duration frequency = Duration.ofMinutes(1);
+
+        /**
+         *  进程占用总CPU资源报警阈值比率，小于等于0不报警，默认 0.6，即jvm进程占用总CPU资源达到60%
+         */
+        private double processCpuLoadNoticeRate = 0.6;
+
+        /**
+         * 连续出现CPU资源达到报警阈值的次数时进行报警，默认 3次
+         */
+        private int cpuLoadNoticeFrequency = 3;
+
+        /**
+         * 线程数报警阈值，小于等于0不报警，默认2000
+         */
+        private int threadNoticeCount = 2000;
+        /**
+         *  内存池使用率报警阈值比率，小于等于0不报警，默认 0.95，即内存池占用达到95%
+         */
+        private double memoryUsedNoticeRate = 0.95;
+        /**
+         * 连续出现内存池使用率达到报警阈值的次数时进行报警，默认 3次
+         */
+        private int memoryUsedNoticeFrequency = 3;
+        /**
+         * 两次监控之间，出现 Full GC 次数达到此报警阈值进行报警，默认 5次
+         */
+        private int fullGcNoticeCount = 5;
     }
 
     @Data
