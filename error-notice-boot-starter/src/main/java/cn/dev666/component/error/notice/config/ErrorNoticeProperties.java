@@ -97,7 +97,7 @@ public class ErrorNoticeProperties {
         /**
          *  进程占用总CPU资源报警阈值比率，小于等于0不报警，默认 0.6，即jvm进程占用总CPU资源达到60%
          */
-        private double processCpuLoadNoticeRate = 0.6;
+        private double cpuLoadNoticeRate = 0.6;
 
         /**
          * 连续出现CPU资源达到报警阈值的次数时进行报警，默认 3次
@@ -136,7 +136,7 @@ public class ErrorNoticeProperties {
          *
          *  默认 0.7，即1分钟、5分钟、15分钟负载都达到 CPU数 * 0.7时，进行报警
          */
-        private double LoadAverageNoticeRate = 0.7;
+        private double cpuLoadAverageNoticeRate = 0.7;
 
         /**
          *  CPU使用率报警阈值比率，小于等于0不报警，默认 0.9
@@ -152,7 +152,7 @@ public class ErrorNoticeProperties {
          *
          *  默认最小正数，即只要使用就报警
          */
-        private double SwapUsedNoticeRate = Double.MIN_VALUE;
+        private double swapUsedNoticeRate = Double.MIN_VALUE;
         /**
          *  单块磁盘使用率报警阈值比率，小于等于0不报警，默认 0.9
          */
@@ -160,6 +160,6 @@ public class ErrorNoticeProperties {
         /**
          *  文件描述符使用率报警阈值比率，小于等于0不报警，默认 0.9
          */
-        private double FileDescriptorsUsedNoticeRate = 0.9;
+        private double fileDescriptorsUsedNoticeRate = 0.9;
     }
 }

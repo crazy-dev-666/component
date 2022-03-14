@@ -58,7 +58,7 @@ public class JvmResourceMonitor {
         processCpuLoad = processCpuLoad * systemCpuLoad;
         log.debug("JVM CPU信息：系统总使用率 {}，当前进程使用率 {}", systemCpuLoad, processCpuLoad);
 
-        double processCpuLoadNoticeRate = properties.getProcessCpuLoadNoticeRate();
+        double processCpuLoadNoticeRate = properties.getCpuLoadNoticeRate();
         if (processCpuLoadNoticeRate > 0) {
             if (processCpuLoad >= processCpuLoadNoticeRate){
                 if (cpuLoadCount.incrementAndGet() >= properties.getCpuLoadNoticeFrequency()){

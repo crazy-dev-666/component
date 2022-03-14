@@ -199,8 +199,8 @@ public class OsResourceMonitor {
 
             log.debug("CPU负载：1分钟 {}，5分钟 {}，15分钟 {}", loadAverage[0], loadAverage[1], loadAverage[2]);
 
-            if (properties.getLoadAverageNoticeRate() > 0) {
-                double value = logicalCount * properties.getLoadAverageNoticeRate();
+            if (properties.getCpuLoadAverageNoticeRate() > 0) {
+                double value = logicalCount * properties.getCpuLoadAverageNoticeRate();
                 boolean flag = true;
                 for (double v : loadAverage) {
                     if (v < value) {
