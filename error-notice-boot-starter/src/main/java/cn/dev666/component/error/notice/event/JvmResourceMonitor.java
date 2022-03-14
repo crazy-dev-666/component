@@ -65,9 +65,9 @@ public class JvmResourceMonitor {
                     cpuLoadCount.set(0);
 
                     Map<String,String> argsMap = new LinkedHashMap<>(3);
-                    argsMap.put("事件描述", "当前进程CPU使用率过高");
-                    argsMap.put("系统CPU总使用率", String.valueOf(systemCpuLoad));
-                    argsMap.put("进程CPU使用率", String.valueOf(processCpuLoad));
+                    argsMap.put("事件描述", "当前 JVM CPU 使用率过高（正常区间 0 ~ " + processCpuLoadNoticeRate + "）");
+                    argsMap.put("系统CPU使用率", df.format(systemCpuLoad));
+                    argsMap.put("进程CPU使用率", df.format(processCpuLoad));
                     errorEventListener.onApplicationEvent(Events.newEvent("进程资源异常", "当前进程CPU使用率过高", argsMap));
                 }
             }else {
@@ -86,7 +86,7 @@ public class JvmResourceMonitor {
         if (properties.getThreadNoticeCount() > 0){
             if (threadCount >= properties.getThreadNoticeCount()){
                 Map<String,String> argsMap = new LinkedHashMap<>(2);
-                argsMap.put("事件描述", "实时线程数过多");
+                argsMap.put("事件描述", "当前 JVM 线程数过多（正常区间 0 ~ " + properties.getThreadNoticeCount() + "）");
                 argsMap.put("实时线程数", String.valueOf(threadCount));
                 errorEventListener.onApplicationEvent(Events.newEvent("进程资源异常", "实时线程数过多", argsMap));
             }
@@ -133,12 +133,12 @@ public class JvmResourceMonitor {
             MemoryUsage usage = bean.getUsage();
             String memoryMax = usage.getMax() > 0 ? FormatUtil.formatBytes(usage.getMax()) : "无上限";
             String memoryCommitted = FormatUtil.formatBytes(usage.getCommitted());
+            String rate = getRate(usage.getMax() > 0 ? usage.getMax() : usage.getCommitted(), usage.getUsed());
             log.debug("JVM 内存池：{}，最大内存 {}，已分配内存 {}，使用率 {}，GC方式 {}", String.format("%-"+max+"s",bean.getName()),
-                    memoryMax, memoryCommitted,
-                    getRate(usage.getCommitted(), usage.getUsed()), String.join(",", bean.getMemoryManagerNames()));
+                    memoryMax, memoryCommitted, rate, String.join(",", bean.getMemoryManagerNames()));
 
             if (properties.getMemoryUsedNoticeRate() > 0) {
-                //非新生代和幸存区
+                //有上限、且非新生代和幸存区
                 if (usage.getMax() > 0 && !poolNameSet.contains(bean.getName())) {
 
                     AtomicInteger num;
@@ -152,11 +152,12 @@ public class JvmResourceMonitor {
                             num.set(0);
 
                             Map<String, String> argsMap = new LinkedHashMap<>(3);
-                            String name = "当前JVM 内存池 " + bean.getName() + "使用率过高";
+                            String name = "当前JVM 内存池 " + bean.getName() + " 使用率过高（正常区间 0 ~ " + properties.getMemoryUsedNoticeRate() + "）";
                             argsMap.put("事件描述", name);
                             argsMap.put("最大内存", memoryMax);
-                            argsMap.put("已分配内存", memoryCommitted);
-                            argsMap.put("已使用内存", FormatUtil.formatBytes(usage.getUsed()));
+                            argsMap.put("已分配", memoryCommitted);
+                            argsMap.put("已使用", FormatUtil.formatBytes(usage.getUsed()));
+                            argsMap.put("使用率", rate);
                             errorEventListener.onApplicationEvent(Events.newEvent("进程资源异常", name, argsMap));
                         }
                     }else {
@@ -202,10 +203,16 @@ public class JvmResourceMonitor {
         long count = fullGcBean.getCollectionCount();
         long lastCount = fullGcCount.getAndSet(count);
 
+        //第一次忽略
+        if (lastCount == 0){
+            return;
+        }
+
         long num = count - lastCount;
+
         if (num >= properties.getFullGcNoticeCount()){
             Map<String,String> argsMap = new LinkedHashMap<>(3);
-            argsMap.put("事件描述", "Full GC 过于频繁");
+            argsMap.put("事件描述", "当前 JVM Full GC 过于频繁（正常区间 0 ~ " + properties.getFullGcNoticeCount() + "）");
             argsMap.put("Full GC 频率",  String.format("%s 内出现 %d 次", format(properties.getFrequency()), num));
             errorEventListener.onApplicationEvent(Events.newEvent("进程资源异常", "Full GC 过于频繁", argsMap));
         }
