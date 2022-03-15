@@ -16,14 +16,22 @@ public class ErrorNoticeProperties {
     private boolean enabled = true;
 
     /**
-     * 发送间隔
+     * 同一错误码，多个错误的发送间隔，默认1小时
      */
     @DurationUnit(ChronoUnit.MINUTES)
     private Duration interval = Duration.ofMinutes(60);
     /**
-     * 发送阈值，当间隔时间内，次数突破阈值时，再次发送。
+     * 发送阈值，当间隔时间内，错误次数突破阈值时，再次发送。，默认5次
      */
     private Integer threshold = 5;
+
+    /**
+     * TODO 聚合间隔，最大延迟时间，默认1分钟
+     *
+     * 避免发送过于频繁，将报警信息进行聚合发送
+     */
+    @DurationUnit(ChronoUnit.SECONDS)
+    private Duration aggregationInterval = Duration.ofSeconds(60);
 
     /**
      *  不发送提醒的环境集合

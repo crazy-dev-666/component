@@ -142,7 +142,7 @@ public class ErrorEventListener implements InitializingBean, ApplicationContextA
     }
 
     private String getKey(ErrorEvent event) {
-        return event.getType() + ":" + event.getUniqueErrorCode();
+        return event.getScene() + ":" + event.getUniqueErrorCode();
     }
 
     @Getter

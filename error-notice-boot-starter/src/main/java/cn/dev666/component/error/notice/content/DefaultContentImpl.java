@@ -23,7 +23,7 @@ public class DefaultContentImpl implements Content<DefaultErrorEvent> {
 
     @Override
     public ContentResult get(DefaultErrorEvent event, ErrorEventListener.DealEventResult result) {
-        String title = profiles + " 环境, "+ event.getType() +" 报警";
+        String title = profiles + " 环境, "+ event.getScene() +" 报警";
         String processId;
         try {
             RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
