@@ -2,16 +2,18 @@ package cn.dev666.component.error.notice.channel;
 
 import cn.dev666.component.error.notice.config.ErrorNoticeProperties;
 import cn.dev666.component.error.notice.content.ContentResult;
+import cn.dev666.component.error.notice.content.DefaultContentResult;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.MailSender;
 import org.springframework.mail.SimpleMailMessage;
 
 import java.util.Date;
+import java.util.List;
 
 @Slf4j
 @AllArgsConstructor
-public class DefaultMailChannel implements Channel {
+public class DefaultMailChannel implements AggregationChannel<DefaultContentResult> {
 
     private final MailSender mailSender;
 
@@ -20,7 +22,7 @@ public class DefaultMailChannel implements Channel {
     private final ErrorNoticeProperties.EmailProperties properties;
 
     @Override
-    public boolean notice(ContentResult cr) {
+    public boolean notice(DefaultContentResult cr) {
         String[] to = properties == null ? null : properties.getTo();
         if (to == null || to.length == 0) {
             log.debug("{} 邮件发送失败，没有配置收件人", cr.getTitle());
@@ -39,5 +41,20 @@ public class DefaultMailChannel implements Channel {
         }
         mailSender.send(message);
         return true;
+    }
+
+    @Override
+    public DefaultContentResult resultAggregation(String profiles, List<ContentResult> list) {
+
+        int num = 0;
+        StringBuilder sb = new StringBuilder();
+
+        for (ContentResult contentResult : list) {
+            num++;
+            sb.append(contentResult.simpleFormat())
+                    .append(" \n\n ------------------------------------- \n\n ");
+        }
+        String title = profiles + "环境，" + num + "条报警信息聚合";
+        return new DefaultContentResult(title, sb.toString());
     }
 }

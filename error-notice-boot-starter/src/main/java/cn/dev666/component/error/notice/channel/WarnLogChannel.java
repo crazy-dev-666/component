@@ -7,7 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 public class WarnLogChannel implements Channel {
     @Override
     public boolean notice(ContentResult cr) {
-        log.warn("{} \n {}", cr.getTitle(), cr.getContent());
+        log.warn(cr.simpleFormat());
         return true;
     }
 }

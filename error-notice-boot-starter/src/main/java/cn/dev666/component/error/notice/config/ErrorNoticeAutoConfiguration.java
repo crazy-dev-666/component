@@ -1,13 +1,13 @@
 package cn.dev666.component.error.notice.config;
 
 import cn.dev666.component.error.notice.channel.DefaultMailChannel;
+import cn.dev666.component.error.notice.channel.WarnLogChannel;
 import cn.dev666.component.error.notice.enums.JvmType;
 import cn.dev666.component.error.notice.event.JvmResourceMonitor;
 import cn.dev666.component.error.notice.event.OsResourceMonitor;
 import cn.dev666.component.error.notice.listener.ErrorEventListener;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -52,7 +52,7 @@ public class ErrorNoticeAutoConfiguration {
     public ThreadPoolTaskScheduler exceptionEventScheduler() {
         ThreadPoolTaskScheduler executor = new ThreadPoolTaskScheduler();
         executor.setThreadGroupName("cron-ex-pool");
-        executor.setPoolSize(1);
+        executor.setPoolSize(10);
         executor.setThreadNamePrefix("cron-ex-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardOldestPolicy());
         return executor;
@@ -60,15 +60,20 @@ public class ErrorNoticeAutoConfiguration {
 
 
     @Bean
-    @ConditionalOnBean(JavaMailSender.class)
-    @ConditionalOnProperty(value = "error.notice.email.to")
     public DefaultMailChannel mailChannel(JavaMailSender mailSender){
         return new DefaultMailChannel(mailSender, mailFrom, properties.getEmail());
     }
 
     @Bean
-    public ErrorEventListener exceptionListener(@Qualifier("exceptionEventExecutor") ThreadPoolTaskExecutor executor){
-        return new ErrorEventListener(executor, properties, applicationName);
+    @ConditionalOnProperty(prefix = "error.notice", value = "warn-log", havingValue = "true")
+    public WarnLogChannel warnLogChannel(){
+        return new WarnLogChannel();
+    }
+
+    @Bean
+    public ErrorEventListener exceptionListener(@Qualifier("exceptionEventExecutor") ThreadPoolTaskExecutor executor,
+                                                @Qualifier("exceptionEventScheduler") ThreadPoolTaskScheduler scheduler){
+        return new ErrorEventListener(executor, scheduler, properties, applicationName);
     }
 
     @Bean

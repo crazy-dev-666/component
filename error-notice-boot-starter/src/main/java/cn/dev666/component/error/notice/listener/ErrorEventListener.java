@@ -1,5 +1,6 @@
 package cn.dev666.component.error.notice.listener;
 
+import cn.dev666.component.error.notice.channel.AggregationChannel;
 import cn.dev666.component.error.notice.channel.Channel;
 import cn.dev666.component.error.notice.config.ErrorNoticeProperties;
 import cn.dev666.component.error.notice.content.Content;
@@ -15,12 +16,15 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.lang.reflect.ParameterizedType;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
@@ -39,12 +43,20 @@ public class ErrorEventListener implements InitializingBean, ApplicationContextA
 
     private ApplicationContext applicationContext;
 
-    //通知渠道
+    //普通通知渠道
     private Set<Channel> channelSet = new HashSet<>();
+
+    //聚合通知渠道
+    private Set<AggregationChannel> aggregationChannelSet = new HashSet<>();
+
+    private Queue<ContentResult> resultQueue;
+
+    private AtomicBoolean aggregationFlag;
 
     private Map<Class, Content> eventContentMap = new HashMap<>();
 
     private List<String> profiles;
+
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) {
@@ -53,20 +65,23 @@ public class ErrorEventListener implements InitializingBean, ApplicationContextA
 
     private final ThreadPoolTaskExecutor eventExecutor;
 
+    private final ThreadPoolTaskScheduler scheduler;
+
     private final ErrorNoticeProperties properties;
 
     private final String applicationName;
 
 
-    public ErrorEventListener(ThreadPoolTaskExecutor eventExecutor, ErrorNoticeProperties properties, String applicationName) {
+    public ErrorEventListener(ThreadPoolTaskExecutor eventExecutor, ThreadPoolTaskScheduler scheduler,
+                              ErrorNoticeProperties properties, String applicationName) {
         this.eventExecutor = eventExecutor;
+        this.scheduler = scheduler;
         this.properties = properties;
         this.applicationName = applicationName;
     }
 
     @Override
     public void afterPropertiesSet() {
-        applicationContext.getApplicationName();
         this.profiles = Arrays.asList(applicationContext.getEnvironment().getActiveProfiles());
         Map<String, Content> contentMap = applicationContext.getBeansOfType(Content.class);
         for (Map.Entry<String, Content> entry : contentMap.entrySet()) {
@@ -81,7 +96,20 @@ public class ErrorEventListener implements InitializingBean, ApplicationContextA
         }
 
         Map<String, Channel> beans = applicationContext.getBeansOfType(Channel.class);
-        channelSet.addAll(beans.values());
+
+        for (Channel channel : beans.values()) {
+            if (channel instanceof AggregationChannel){
+                this.aggregationChannelSet.add((AggregationChannel)channel);
+            }else {
+                this.channelSet.add(channel);
+            }
+        }
+
+        if (this.aggregationChannelSet.size() > 0){
+            resultQueue = new ConcurrentLinkedQueue<>();
+            aggregationFlag = new AtomicBoolean(false);
+            scheduler.scheduleAtFixedRate(this::aggregationNotice, properties.getAggregationInterval());
+        }
     }
 
     /**
@@ -109,7 +137,7 @@ public class ErrorEventListener implements InitializingBean, ApplicationContextA
         DealEventResult result = info.dealEvent(now);
         if (result.remindFlag) {
 
-            ContentResult contentResult = null;
+            ContentResult contentResult;
             try {
                 Content content = eventContentMap.get(event.getClass());
 
@@ -124,22 +152,66 @@ public class ErrorEventListener implements InitializingBean, ApplicationContextA
                 return;
             }
 
-            ContentResult finalResult = contentResult;
+
+            if (aggregationChannelSet.size() > 0){
+                resultQueue.add(contentResult);
+            }
             for (Channel channel : channelSet) {
-                eventExecutor.execute(()->{
-                    long start = System.currentTimeMillis();
-                    try {
-                        channel.notice(finalResult);
-                    }catch (Exception e){
-                        log.error(channel.getClass().getName() + " 渠道通知异常", e);
-                    }finally {
-                        log.info("{} 渠道通知完成，耗时 {} ms ", channel.getClass().getName(), System.currentTimeMillis() - start);
-                    }
-                });
+                channelNotice(contentResult, channel);
             }
         }
         cleanCheck();
     }
+
+    private void aggregationNotice() {
+
+        if (!aggregationFlag.compareAndSet(false, true)){
+            return;
+        }
+
+        try {
+            int size = resultQueue.size();
+            if (size == 0){
+                return;
+            }
+            ContentResult result = null;
+            List<ContentResult> list = new ArrayList<>();
+            if (size == 1){
+                result = resultQueue.poll();
+            }else {
+                while (true){
+                    ContentResult poll = resultQueue.poll();
+                    if (poll == null){
+                        break;
+                    }
+                    list.add(poll);
+                }
+            }
+            String profiles = this.profiles.toString();
+            for (AggregationChannel channel : aggregationChannelSet) {
+                if (list.size() > 0){
+                    result = channel.resultAggregation(profiles, list);
+                }
+                channelNotice(result, channel);
+            }
+        }finally {
+            aggregationFlag.compareAndSet(true, false);
+        }
+    }
+
+    private void channelNotice(final ContentResult result, final Channel channel) {
+        eventExecutor.execute(() -> {
+            long start = System.currentTimeMillis();
+            try {
+                channel.notice(result);
+            } catch (Exception e) {
+                log.error(channel.getClass().getName() + " 渠道通知异常", e);
+            } finally {
+                log.info("{} 渠道通知完成，耗时 {} ms ", channel.getClass().getName(), System.currentTimeMillis() - start);
+            }
+        });
+    }
+
 
     private String getKey(ErrorEvent event) {
         return event.getScene() + ":" + event.getUniqueErrorCode();
