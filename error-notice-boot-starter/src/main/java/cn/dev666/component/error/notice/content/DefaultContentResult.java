@@ -13,7 +13,6 @@ public class DefaultContentResult implements ContentResult {
 
     @Override
     public String simpleFormat() {
-        return "标题：" + title + " \n\n "
-                + content;
+        return title + " \n\n " + content;
     }
 }
