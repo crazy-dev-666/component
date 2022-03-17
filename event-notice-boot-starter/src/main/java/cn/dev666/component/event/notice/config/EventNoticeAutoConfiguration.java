@@ -2,6 +2,7 @@ package cn.dev666.component.event.notice.config;
 
 import cn.dev666.component.event.notice.channel.DefaultDingDingChannel;
 import cn.dev666.component.event.notice.channel.DefaultMailChannel;
+import cn.dev666.component.event.notice.channel.DefaultWorkWxChannel;
 import cn.dev666.component.event.notice.channel.WarnLogChannel;
 import cn.dev666.component.event.notice.enums.JvmType;
 import cn.dev666.component.event.notice.listener.NoticeEventListener;
@@ -84,6 +85,15 @@ public class EventNoticeAutoConfiguration {
             objectMapper = new ObjectMapper();
         }
         return new DefaultDingDingChannel(properties.getDingDing(), objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "dev666.event.notice.work-wx", value = "enabled", havingValue = "true")
+    public DefaultWorkWxChannel WorkWxChannel(){
+        if (objectMapper == null){
+            objectMapper = new ObjectMapper();
+        }
+        return new DefaultWorkWxChannel(properties.getWorkWx(), objectMapper);
     }
 
     @Bean

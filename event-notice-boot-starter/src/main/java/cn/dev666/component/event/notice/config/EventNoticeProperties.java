@@ -26,9 +26,7 @@ public class EventNoticeProperties {
     private Integer threshold = 5;
 
     /**
-     * TODO 聚合间隔，最大延迟时间，默认1分钟
-     *
-     * 避免发送过于频繁，将报警信息进行聚合发送
+     * 避免发送过于频繁，将报警信息进行聚合发送，默认1分钟
      */
     @DurationUnit(ChronoUnit.SECONDS)
     private Duration aggregationInterval = Duration.ofSeconds(60);
@@ -90,6 +88,19 @@ public class EventNoticeProperties {
 
     @Data
     public static class WorkWxProperties {
+        /**
+         * 通知链接
+         */
+        private String noticeUrl;
+        /**
+         * @人列表，被@人的用户userid。
+         */
+        private String[] atUserIds;
+
+        /**
+         * @所有人标志
+         */
+        private boolean atAll = false;
     }
 
     @Data
@@ -114,11 +125,12 @@ public class EventNoticeProperties {
         /**
          * @所有人标志
          */
-        private boolean atAll;
+        private boolean atAll = false;
     }
 
     @Data
     public static class WxProperties {
+
     }
 
     @Data
