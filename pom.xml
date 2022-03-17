@@ -5,7 +5,7 @@
     <packaging>pom</packaging>
     <modules>
         <module>request-log-boot-starter</module>
-        <module>error-notice-boot-starter</module>
+        <module>event-notice-boot-starter</module>
         <module>simple-business-engine</module>
     </modules>
     <parent>
