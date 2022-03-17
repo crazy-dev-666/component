@@ -76,6 +76,8 @@ public class ErrorNoticeProperties {
     @Data
     public static class EmailProperties {
 
+        private boolean enabled = true;
+
         /**
          * 发送人列表
          */
@@ -92,6 +94,27 @@ public class ErrorNoticeProperties {
 
     @Data
     public static class DingDingProperties {
+
+        private boolean enabled = true;
+
+        /**
+         * 通知链接
+         */
+        private String noticeUrl;
+        /**
+         * @人列表，被@人的用户的手机号。
+         */
+        private String[] atMobiles;
+
+        /**
+         * @人列表，被@人的用户userid。
+         */
+        private String[] atUserIds;
+
+        /**
+         * @所有人标志
+         */
+        private boolean atAll;
     }
 
     @Data

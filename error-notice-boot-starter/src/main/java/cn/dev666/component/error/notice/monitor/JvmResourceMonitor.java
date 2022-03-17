@@ -1,8 +1,9 @@
-package cn.dev666.component.error.notice.event;
+package cn.dev666.component.error.notice.monitor;
 
 import cn.dev666.component.error.notice.config.ErrorNoticeProperties;
 import cn.dev666.component.error.notice.enums.JvmType;
-import cn.dev666.component.error.notice.listener.ErrorEventListener;
+import cn.dev666.component.error.notice.event.Events;
+import cn.dev666.component.error.notice.listener.NoticeEventListener;
 import com.sun.management.OperatingSystemMXBean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
@@ -31,12 +32,12 @@ public class JvmResourceMonitor {
 
     private ErrorNoticeProperties.JvmResourceProperties properties;
 
-    private ErrorEventListener errorEventListener;
+    private NoticeEventListener noticeEventListener;
 
-    public JvmResourceMonitor(ThreadPoolTaskScheduler scheduler, ErrorEventListener errorEventListener,
+    public JvmResourceMonitor(ThreadPoolTaskScheduler scheduler, NoticeEventListener noticeEventListener,
                               ErrorNoticeProperties.JvmResourceProperties properties, JvmType type) {
         scheduler.scheduleAtFixedRate(this::monitor, properties.getFrequency());
-        this.errorEventListener = errorEventListener;
+        this.noticeEventListener = noticeEventListener;
         this.properties = properties;
     }
 
@@ -68,7 +69,7 @@ public class JvmResourceMonitor {
                     argsMap.put("事件描述", "当前 JVM CPU 使用率过高（正常区间 0 ~ " + processCpuLoadNoticeRate + "）");
                     argsMap.put("系统CPU使用率", df.format(systemCpuLoad));
                     argsMap.put("进程CPU使用率", df.format(processCpuLoad));
-                    errorEventListener.onApplicationEvent(Events.newEvent("进程资源异常", "当前进程CPU使用率过高", argsMap));
+                    noticeEventListener.onApplicationEvent(Events.newEvent("进程资源异常", "当前进程CPU使用率过高", argsMap));
                 }
             }else {
                 cpuLoadCount.set(0);
@@ -88,7 +89,7 @@ public class JvmResourceMonitor {
                 Map<String,String> argsMap = new LinkedHashMap<>(2);
                 argsMap.put("事件描述", "当前 JVM 线程数过多（正常区间 0 ~ " + properties.getThreadNoticeCount() + "）");
                 argsMap.put("实时线程数", String.valueOf(threadCount));
-                errorEventListener.onApplicationEvent(Events.newEvent("进程资源异常", "实时线程数过多", argsMap));
+                noticeEventListener.onApplicationEvent(Events.newEvent("进程资源异常", "实时线程数过多", argsMap));
             }
         }
 
@@ -158,7 +159,7 @@ public class JvmResourceMonitor {
                             argsMap.put("已分配", memoryCommitted);
                             argsMap.put("已使用", FormatUtil.formatBytes(usage.getUsed()));
                             argsMap.put("使用率", rate);
-                            errorEventListener.onApplicationEvent(Events.newEvent("进程资源异常", name, argsMap));
+                            noticeEventListener.onApplicationEvent(Events.newEvent("进程资源异常", name, argsMap));
                         }
                     }else {
                         num.set(0);
@@ -214,7 +215,7 @@ public class JvmResourceMonitor {
             Map<String,String> argsMap = new LinkedHashMap<>(3);
             argsMap.put("事件描述", "当前 JVM Full GC 过于频繁（正常区间 0 ~ " + properties.getFullGcNoticeCount() + "）");
             argsMap.put("Full GC 频率",  String.format("%s 内出现 %d 次", format(properties.getFrequency()), num));
-            errorEventListener.onApplicationEvent(Events.newEvent("进程资源异常", "Full GC 过于频繁", argsMap));
+            noticeEventListener.onApplicationEvent(Events.newEvent("进程资源异常", "Full GC 过于频繁", argsMap));
         }
     }
 

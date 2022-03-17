@@ -3,18 +3,15 @@ package cn.dev666.component.error.notice.listener;
 import cn.dev666.component.error.notice.channel.AggregationChannel;
 import cn.dev666.component.error.notice.channel.Channel;
 import cn.dev666.component.error.notice.config.ErrorNoticeProperties;
-import cn.dev666.component.error.notice.content.Content;
-import cn.dev666.component.error.notice.content.ContentResult;
-import cn.dev666.component.error.notice.content.DefaultContentImpl;
-import cn.dev666.component.error.notice.event.DefaultErrorEvent;
-import cn.dev666.component.error.notice.event.ErrorEvent;
-import lombok.AllArgsConstructor;
+import cn.dev666.component.error.notice.event.DealEventResult;
+import cn.dev666.component.error.notice.event.NoticeEvent;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.env.Environment;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.util.CollectionUtils;
@@ -28,7 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
-public class ErrorEventListener implements InitializingBean, ApplicationContextAware {
+public class NoticeEventListener implements InitializingBean, ApplicationContextAware {
 
     //累计产生1w次错误后，进行清理操作
     private static final int CLEAN_THRESHOLD = 10000;
@@ -44,16 +41,14 @@ public class ErrorEventListener implements InitializingBean, ApplicationContextA
     private ApplicationContext applicationContext;
 
     //普通通知渠道
-    private Set<Channel> channelSet = new HashSet<>();
+    private Map<Class, Set<Channel>> eventChannelMap = new HashMap<>();
 
     //聚合通知渠道
-    private Set<AggregationChannel> aggregationChannelSet = new HashSet<>();
+    private Map<Class, Set<AggregationChannel>> eventAggregationChannelMap = new HashMap<>();
 
-    private Queue<ContentResult> resultQueue;
+    private Queue<NoticeEvent> eventQueue;
 
     private AtomicBoolean aggregationFlag;
-
-    private Map<Class, Content> eventContentMap = new HashMap<>();
 
     private List<String> profiles;
 
@@ -69,44 +64,37 @@ public class ErrorEventListener implements InitializingBean, ApplicationContextA
 
     private final ErrorNoticeProperties properties;
 
-    private final String applicationName;
-
-
-    public ErrorEventListener(ThreadPoolTaskExecutor eventExecutor, ThreadPoolTaskScheduler scheduler,
-                              ErrorNoticeProperties properties, String applicationName) {
+    public NoticeEventListener(ThreadPoolTaskExecutor eventExecutor, ThreadPoolTaskScheduler scheduler,
+                               ErrorNoticeProperties properties) {
         this.eventExecutor = eventExecutor;
         this.scheduler = scheduler;
         this.properties = properties;
-        this.applicationName = applicationName;
     }
 
     @Override
     public void afterPropertiesSet() {
-        this.profiles = Arrays.asList(applicationContext.getEnvironment().getActiveProfiles());
-        Map<String, Content> contentMap = applicationContext.getBeansOfType(Content.class);
-        for (Map.Entry<String, Content> entry : contentMap.entrySet()) {
-            Content value = entry.getValue();
-            ParameterizedType type = (ParameterizedType) value.getClass().getGenericSuperclass();
-            Class<?> eventClazz = (Class<?>) type.getActualTypeArguments()[0];
-            eventContentMap.put(eventClazz, value);
+        Environment environment = applicationContext.getEnvironment();
+        String[] profiles = environment.getActiveProfiles();
+        if (profiles == null || profiles.length == 0){
+            profiles = environment.getDefaultProfiles();
         }
-
-        if (!eventContentMap.containsKey(DefaultErrorEvent.class)){
-            eventContentMap.put(DefaultErrorEvent.class, new DefaultContentImpl(profiles.toString(), applicationName));
-        }
-
+        this.profiles = Arrays.asList(profiles);
         Map<String, Channel> beans = applicationContext.getBeansOfType(Channel.class);
 
         for (Channel channel : beans.values()) {
+            ParameterizedType type = (ParameterizedType) channel.getClass().getGenericInterfaces()[0];
+            Class<?> eventClazz = (Class<?>) type.getActualTypeArguments()[0];
             if (channel instanceof AggregationChannel){
-                this.aggregationChannelSet.add((AggregationChannel)channel);
+                Set<AggregationChannel> channels = this.eventAggregationChannelMap.computeIfAbsent(eventClazz, k -> new HashSet<>());
+                channels.add((AggregationChannel)channel);
             }else {
-                this.channelSet.add(channel);
+                Set<Channel> channels = this.eventChannelMap.computeIfAbsent(eventClazz, k -> new HashSet<>());
+                channels.add(channel);
             }
         }
 
-        if (this.aggregationChannelSet.size() > 0){
-            resultQueue = new ConcurrentLinkedQueue<>();
+        if (this.eventAggregationChannelMap.size() > 0){
+            eventQueue = new ConcurrentLinkedQueue<>();
             aggregationFlag = new AtomicBoolean(false);
             scheduler.scheduleAtFixedRate(this::aggregationNotice, properties.getAggregationInterval());
         }
@@ -120,8 +108,9 @@ public class ErrorEventListener implements InitializingBean, ApplicationContextA
      *
      * 场景：出现异常发送提醒，每小时提醒一次，如果1小时内异常出现超过阈值10次时，再次提醒
      */
-    @EventListener
-    public void onApplicationEvent(ErrorEvent event) {
+    @EventListener(NoticeEvent.class)
+    @SuppressWarnings("unchecked")
+    public void onApplicationEvent(NoticeEvent event) {
 
         if (CollectionUtils.containsAny(properties.getIgnoreProfiles(), profiles)){
             return;
@@ -135,34 +124,43 @@ public class ErrorEventListener implements InitializingBean, ApplicationContextA
 
         long now = event.getTimestamp();
         DealEventResult result = info.dealEvent(now);
-        if (result.remindFlag) {
+        if (result.isRemindFlag()) {
 
-            ContentResult contentResult;
-            try {
-                Content content = eventContentMap.get(event.getClass());
+            event.setResult(result);
 
-                if (content == null){
-                    log.error("根据事件类型 {}，没有找到匹配的获取通知内容的 Bean", event.getClass().getName());
-                    return;
+            boolean isNotice = false;
+
+            if (eventAggregationChannelMap.containsKey(event.getClass())){
+                eventQueue.add(event);
+                isNotice = true;
+            }
+            Set<Channel> channels = eventChannelMap.get(event.getClass());
+            if (channels != null) {
+                isNotice = true;
+                for (Channel channel : channels) {
+                    channelNotice(new Notice(){
+
+                        @Override
+                        public boolean doNotice()throws Exception {
+                            return  channel.notice(event);
+                        }
+
+                        @Override
+                        public String getChannelName() {
+                            return channel.getClass().getName();
+                        }
+                    });
                 }
-
-                contentResult = content.get(event, result);
-            }catch (Exception e){
-                log.error("获取通知内容异常",e);
-                return;
             }
 
-
-            if (aggregationChannelSet.size() > 0){
-                resultQueue.add(contentResult);
-            }
-            for (Channel channel : channelSet) {
-                channelNotice(contentResult, channel);
+            if (!isNotice){
+                log.error("根据事件类型 {}，没有找到匹配的通知渠道", event.getClass().getName());
             }
         }
         cleanCheck();
     }
 
+    @SuppressWarnings("unchecked")
     private void aggregationNotice() {
 
         if (!aggregationFlag.compareAndSet(false, true)){
@@ -170,51 +168,65 @@ public class ErrorEventListener implements InitializingBean, ApplicationContextA
         }
 
         try {
-            int size = resultQueue.size();
+            int size = eventQueue.size();
             if (size == 0){
                 return;
             }
-            ContentResult result = null;
-            List<ContentResult> list = new ArrayList<>();
-            if (size == 1){
-                result = resultQueue.poll();
-            }else {
-                while (true){
-                    ContentResult poll = resultQueue.poll();
-                    if (poll == null){
-                        break;
-                    }
-                    list.add(poll);
+            Map<Class,List<NoticeEvent>> map = new HashMap<>();
+            while (true){
+                NoticeEvent event = eventQueue.poll();
+                if (event == null){
+                    break;
                 }
+                List<NoticeEvent> list = map.computeIfAbsent(event.getClass(), k -> new ArrayList<>());
+                list.add(event);
             }
-            String profiles = this.profiles.toString();
-            for (AggregationChannel channel : aggregationChannelSet) {
-                if (list.size() > 0){
-                    result = channel.resultAggregation(profiles, list);
+            for (Map.Entry<Class, List<NoticeEvent>> entry : map.entrySet()) {
+                Set<AggregationChannel> channels = eventAggregationChannelMap.get(entry.getKey());
+                for (AggregationChannel channel : channels) {
+                    channelNotice(new Notice(){
+
+                        @Override
+                        public boolean doNotice()throws Exception {
+                            return channel.notice(entry.getValue());
+                        }
+
+                        @Override
+                        public String getChannelName() {
+                            return channel.getClass().getName();
+                        }
+                    });
                 }
-                channelNotice(result, channel);
             }
         }finally {
             aggregationFlag.compareAndSet(true, false);
         }
     }
 
-    private void channelNotice(final ContentResult result, final Channel channel) {
+    private interface Notice {
+        boolean doNotice() throws Exception;
+        String getChannelName();
+    }
+
+    private void channelNotice(Notice notice) {
         eventExecutor.execute(() -> {
             long start = System.currentTimeMillis();
             try {
-                channel.notice(result);
+                boolean result = notice.doNotice();
+                if (!result){
+                    log.warn("{} 渠道通知发送失败", notice.getChannelName());
+                }
             } catch (Exception e) {
-                log.error(channel.getClass().getName() + " 渠道通知异常", e);
+                log.error(notice.getChannelName() + " 渠道通知异常", e);
             } finally {
-                log.info("{} 渠道通知完成，耗时 {} ms ", channel.getClass().getName(), System.currentTimeMillis() - start);
+                log.info("{} 渠道通知完成，耗时 {} ms ", notice.getChannelName(), System.currentTimeMillis() - start);
             }
         });
     }
 
 
-    private String getKey(ErrorEvent event) {
-        return event.getScene() + ":" + event.getUniqueErrorCode();
+    private String getKey(NoticeEvent event) {
+        return event.getScene() + ":" + event.getUniqueCode();
     }
 
     @Getter
@@ -272,14 +284,6 @@ public class ErrorEventListener implements InitializingBean, ApplicationContextA
                     .replaceFirst("S","秒");
         }
     }
-
-    @Getter
-    @AllArgsConstructor
-    public static class DealEventResult {
-        private boolean remindFlag;
-        private String frequency;
-    }
-
 
     private void cleanCheck() {
         int count = cleanCount.incrementAndGet();

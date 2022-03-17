@@ -1,7 +1,8 @@
-package cn.dev666.component.error.notice.event;
+package cn.dev666.component.error.notice.monitor;
 
 import cn.dev666.component.error.notice.config.ErrorNoticeProperties;
-import cn.dev666.component.error.notice.listener.ErrorEventListener;
+import cn.dev666.component.error.notice.event.Events;
+import cn.dev666.component.error.notice.listener.NoticeEventListener;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import oshi.SystemInfo;
@@ -28,13 +29,13 @@ public class OsResourceMonitor {
     private final DecimalFormat df = new DecimalFormat("0.00%");
 
     private long[] lastTicks;
-    private ErrorEventListener errorEventListener;
+    private NoticeEventListener noticeEventListener;
     private ErrorNoticeProperties.OsResourceProperties properties;
 
-    public OsResourceMonitor(ThreadPoolTaskScheduler scheduler, ErrorEventListener errorEventListener,
+    public OsResourceMonitor(ThreadPoolTaskScheduler scheduler, NoticeEventListener noticeEventListener,
                              ErrorNoticeProperties.OsResourceProperties properties) {
         scheduler.scheduleAtFixedRate(this::monitor, properties.getFrequency());
-        this.errorEventListener = errorEventListener;
+        this.noticeEventListener = noticeEventListener;
         this.properties = properties;
     }
 
@@ -75,7 +76,7 @@ public class OsResourceMonitor {
             argsMap.put("上限值", args3[0]);
             argsMap.put("已使用", String.valueOf(maxFileDescriptors - openFileDescriptors));
             argsMap.put("使用率", args3[1]);
-            errorEventListener.onApplicationEvent(Events.newEvent("机器资源异常", "文件描述符", argsMap));
+            noticeEventListener.onApplicationEvent(Events.newEvent("机器资源异常", "文件描述符", argsMap));
         }
     }
 
@@ -103,7 +104,7 @@ public class OsResourceMonitor {
                 argsMap.put("总大小", args2[1]);
                 argsMap.put("已使用", FormatUtil.formatBytes(store.getTotalSpace() - store.getUsableSpace()));
                 argsMap.put("使用率", args2[2]);
-                errorEventListener.onApplicationEvent(Events.newEvent("机器资源异常", args2[0] + "磁盘使用率过高", argsMap));
+                noticeEventListener.onApplicationEvent(Events.newEvent("机器资源异常", args2[0] + "磁盘使用率过高", argsMap));
             }
         }
     }
@@ -124,7 +125,7 @@ public class OsResourceMonitor {
             argsMap.put("总大小", total);
             argsMap.put("已使用", used);
             argsMap.put("使用率", usedRate);
-            errorEventListener.onApplicationEvent(Events.newEvent("机器资源异常", "交换分区使用率", argsMap));
+            noticeEventListener.onApplicationEvent(Events.newEvent("机器资源异常", "交换分区使用率", argsMap));
         }
     }
 
@@ -141,7 +142,7 @@ public class OsResourceMonitor {
             argsMap.put("总内存", args[0]);
             argsMap.put("已使用", FormatUtil.formatBytes(memory.getTotal() - memory.getAvailable()));
             argsMap.put("使用率", args[1]);
-            errorEventListener.onApplicationEvent(Events.newEvent("机器资源异常", "内存使用率", argsMap));
+            noticeEventListener.onApplicationEvent(Events.newEvent("机器资源异常", "内存使用率", argsMap));
         }
     }
 
@@ -190,7 +191,7 @@ public class OsResourceMonitor {
                 argsMap.put("中断处理", args[5]);
                 argsMap.put("软中断处理", args[6]);
                 argsMap.put("虚拟系统占用", args[7]);
-                errorEventListener.onApplicationEvent(Events.newEvent("机器资源异常", "CPU使用率", argsMap));
+                noticeEventListener.onApplicationEvent(Events.newEvent("机器资源异常", "CPU使用率", argsMap));
             }
         }
     }
@@ -218,7 +219,7 @@ public class OsResourceMonitor {
                     argsMap.put("1分钟CPU平均负载", String.valueOf(loadAverage[0]));
                     argsMap.put("5分钟CPU平均负载", String.valueOf(loadAverage[1]));
                     argsMap.put("15分钟CPU平均负载", String.valueOf(loadAverage[2]));
-                    errorEventListener.onApplicationEvent(Events.newEvent("机器资源异常", "CPU负载", argsMap));
+                    noticeEventListener.onApplicationEvent(Events.newEvent("机器资源异常", "CPU负载", argsMap));
                 }
             }
         }

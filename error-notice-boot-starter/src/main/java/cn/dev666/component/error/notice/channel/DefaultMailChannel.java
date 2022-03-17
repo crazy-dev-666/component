@@ -1,8 +1,8 @@
 package cn.dev666.component.error.notice.channel;
 
 import cn.dev666.component.error.notice.config.ErrorNoticeProperties;
-import cn.dev666.component.error.notice.content.ContentResult;
-import cn.dev666.component.error.notice.content.DefaultContentResult;
+import cn.dev666.component.error.notice.event.DefaultNoticeEvent;
+import cn.dev666.component.error.notice.utils.DataUtils;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.MailSender;
@@ -13,7 +13,7 @@ import java.util.List;
 
 @Slf4j
 @AllArgsConstructor
-public class DefaultMailChannel implements AggregationChannel<DefaultContentResult> {
+public class DefaultMailChannel implements AggregationChannel<DefaultNoticeEvent> {
 
     private final MailSender mailSender;
 
@@ -22,16 +22,42 @@ public class DefaultMailChannel implements AggregationChannel<DefaultContentResu
     private final ErrorNoticeProperties.EmailProperties properties;
 
     @Override
-    public boolean notice(DefaultContentResult cr) {
+    public boolean notice(DefaultNoticeEvent event) {
+        return sendNotice(event.getTitle(), event.getContentWithApplcationInfo().toString());
+    }
+
+    @Override
+    public boolean notice(List<DefaultNoticeEvent> list) {
+
+        if (list.size() == 1){
+            return notice(list.get(0));
+        }
+
+        int num = 0;
+        StringBuilder sb = new StringBuilder();
+        sb.append(DataUtils.getApplicationInfo());
+
+        for (DefaultNoticeEvent event : list) {
+            num++;
+            sb.append(" \n\n ------------------------------------- \n\n ")
+                .append(event.getTitle()).append(" \n ")
+                .append(event.getContent());
+        }
+        String title = DataUtils.getProfiles() + "环境，" + num + "条报警信息聚合";
+        return sendNotice(title, sb.toString());
+    }
+
+
+    protected boolean sendNotice(String title, String content) {
         String[] to = properties == null ? null : properties.getTo();
         if (to == null || to.length == 0) {
-            log.debug("{} 邮件发送失败，没有配置收件人", cr.getTitle());
+            log.debug("{} 邮件发送失败，没有配置收件人", title);
             return false;
         }
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(to);
-        message.setSubject(cr.getTitle());
-        message.setText(cr.getContent());
+        message.setSubject(title);
+        message.setText(content);
         message.setFrom(mailFrom);
         message.setSentDate(new Date());
 
@@ -41,20 +67,5 @@ public class DefaultMailChannel implements AggregationChannel<DefaultContentResu
         }
         mailSender.send(message);
         return true;
-    }
-
-    @Override
-    public DefaultContentResult resultAggregation(String profiles, List<ContentResult> list) {
-
-        int num = 0;
-        StringBuilder sb = new StringBuilder();
-
-        for (ContentResult contentResult : list) {
-            num++;
-            sb.append(contentResult.simpleFormat())
-                    .append(" \n\n ------------------------------------- \n\n ");
-        }
-        String title = profiles + "环境，" + num + "条报警信息聚合";
-        return new DefaultContentResult(title, sb.toString());
     }
 }

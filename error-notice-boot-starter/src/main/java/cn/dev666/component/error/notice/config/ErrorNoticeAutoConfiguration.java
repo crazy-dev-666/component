@@ -1,17 +1,22 @@
 package cn.dev666.component.error.notice.config;
 
+import cn.dev666.component.error.notice.channel.DefaultDingDingChannel;
 import cn.dev666.component.error.notice.channel.DefaultMailChannel;
 import cn.dev666.component.error.notice.channel.WarnLogChannel;
 import cn.dev666.component.error.notice.enums.JvmType;
-import cn.dev666.component.error.notice.event.JvmResourceMonitor;
-import cn.dev666.component.error.notice.event.OsResourceMonitor;
-import cn.dev666.component.error.notice.listener.ErrorEventListener;
+import cn.dev666.component.error.notice.listener.NoticeEventListener;
+import cn.dev666.component.error.notice.monitor.JvmResourceMonitor;
+import cn.dev666.component.error.notice.monitor.OsResourceMonitor;
+import cn.dev666.component.error.notice.utils.DataUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
@@ -20,6 +25,7 @@ import org.springframework.util.StringUtils;
 import javax.annotation.Resource;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
+import java.util.Arrays;
 import java.util.concurrent.ThreadPoolExecutor;
 
 @Configuration
@@ -34,7 +40,13 @@ public class ErrorNoticeAutoConfiguration {
     private String applicationName;
 
     @Resource
+    private Environment environment;
+
+    @Resource
     private ErrorNoticeProperties properties;
+
+    @Autowired(required = false)
+    private ObjectMapper objectMapper;
 
     @Bean("exceptionEventExecutor")
     public ThreadPoolTaskExecutor exceptionEventExecutor() {
@@ -60,8 +72,18 @@ public class ErrorNoticeAutoConfiguration {
 
 
     @Bean
+    @ConditionalOnProperty(prefix = "error.notice.email", value = "enabled", havingValue = "true")
     public DefaultMailChannel mailChannel(JavaMailSender mailSender){
         return new DefaultMailChannel(mailSender, mailFrom, properties.getEmail());
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "error.notice.ding-ding", value = "enabled", havingValue = "true")
+    public DefaultDingDingChannel DingDingChannel(){
+        if (objectMapper == null){
+            objectMapper = new ObjectMapper();
+        }
+        return new DefaultDingDingChannel(properties.getDingDing(), objectMapper);
     }
 
     @Bean
@@ -71,22 +93,27 @@ public class ErrorNoticeAutoConfiguration {
     }
 
     @Bean
-    public ErrorEventListener exceptionListener(@Qualifier("exceptionEventExecutor") ThreadPoolTaskExecutor executor,
-                                                @Qualifier("exceptionEventScheduler") ThreadPoolTaskScheduler scheduler){
-        return new ErrorEventListener(executor, scheduler, properties, applicationName);
+    public NoticeEventListener exceptionListener(@Qualifier("exceptionEventExecutor") ThreadPoolTaskExecutor executor,
+                                                 @Qualifier("exceptionEventScheduler") ThreadPoolTaskScheduler scheduler){
+        String[] profiles = environment.getActiveProfiles();
+        if (profiles == null || profiles.length == 0){
+            profiles = environment.getDefaultProfiles();
+        }
+        DataUtils.init(Arrays.toString(profiles), applicationName);
+        return new NoticeEventListener(executor, scheduler, properties);
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "error.notice.osMonitor", value = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "error.notice.os", value = "enabled", havingValue = "true", matchIfMissing = true)
     public OsResourceMonitor osMonitor(@Qualifier("exceptionEventScheduler") ThreadPoolTaskScheduler scheduler,
-                                        ErrorEventListener errorEventListener){
-        return new OsResourceMonitor(scheduler, errorEventListener, properties.getOs());
+                                        NoticeEventListener noticeEventListener){
+        return new OsResourceMonitor(scheduler, noticeEventListener, properties.getOs());
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "error.notice.jvmMonitor", value = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "error.notice.jvm", value = "enabled", havingValue = "true", matchIfMissing = true)
     public JvmResourceMonitor jvmMonitor(@Qualifier("exceptionEventScheduler") ThreadPoolTaskScheduler scheduler,
-                                         ErrorEventListener errorEventListener){
+                                         NoticeEventListener noticeEventListener){
 
         RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
         String vmName = bean.getVmName();
@@ -100,7 +127,7 @@ public class ErrorNoticeAutoConfiguration {
                 type = JvmType.ORACLE;
             }
         }
-        return new JvmResourceMonitor(scheduler, errorEventListener, properties.getJvm(), type);
+        return new JvmResourceMonitor(scheduler, noticeEventListener, properties.getJvm(), type);
     }
 
 

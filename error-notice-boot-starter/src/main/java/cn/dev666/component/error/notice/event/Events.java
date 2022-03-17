@@ -9,14 +9,14 @@ import java.util.Map;
 
 public class Events {
 
-    public static DefaultErrorEvent newEvent(String type, String uniqueErrorCode, String key, String value){
+    public static DefaultNoticeEvent newEvent(String type, String uniqueErrorCode, String key, String value){
         Map<String,String> argsMap = new HashMap<>(1);
         argsMap.put(key, value);
         return newEvent(type, uniqueErrorCode, argsMap);
     }
 
-    public static DefaultErrorEvent newEvent(String type, String uniqueErrorCode,
-                                          String key1, String value1, String key2, String value2){
+    public static DefaultNoticeEvent newEvent(String type, String uniqueErrorCode,
+                                              String key1, String value1, String key2, String value2){
         Map<String,String> argsMap = new LinkedHashMap<>(2);
         argsMap.put(key1, value1);
         argsMap.put(key2, value2);
@@ -28,8 +28,8 @@ public class Events {
      * @param uniqueErrorCode   唯一错误码，用于区分同一场景中，错误是否相同及错误数累计。为空时，则根据入参区分
      * @param argsMap           业务参数
      */
-    public static DefaultErrorEvent newEvent(String type, String uniqueErrorCode, Map<String,String> argsMap){
-        return new DefaultErrorEvent(type, uniqueErrorCode, argsMap);
+    public static DefaultNoticeEvent newEvent(String type, String uniqueErrorCode, Map<String,String> argsMap){
+        return new DefaultNoticeEvent(type, uniqueErrorCode, argsMap);
     }
 
     /**
@@ -38,7 +38,7 @@ public class Events {
      * @param url   请求URL
      * @param e     异常
      */
-    public static DefaultErrorEvent exceptionEvent(String url, Exception e){
+    public static DefaultNoticeEvent exceptionEvent(String url, Exception e){
         Map<String,String> argsMap = new LinkedHashMap<>(2);
         argsMap.put("请求URL", url);
         argsMap.put("异常详情", getStackTrace(e));
@@ -52,7 +52,7 @@ public class Events {
      * @param time      耗时
      * @param params    请求参数
      */
-    public static DefaultErrorEvent slowRequestEvent(String url, long time, String... params){
+    public static DefaultNoticeEvent slowRequestEvent(String url, long time, String... params){
         Map<String,String> argsMap = new LinkedHashMap<>(3);
         argsMap.put("请求URL", url);
         argsMap.put("请求参数", Arrays.deepToString(params));
@@ -67,7 +67,7 @@ public class Events {
      * @param time      耗时
      * @param params    请求参数
      */
-    public static DefaultErrorEvent slowThirdRequestEvent(String url, long time, String... params){
+    public static DefaultNoticeEvent slowThirdRequestEvent(String url, long time, String... params){
         Map<String,String> argsMap = new LinkedHashMap<>(3);
         argsMap.put("三方请求URL", url);
         argsMap.put("请求参数", Arrays.deepToString(params));
@@ -82,7 +82,7 @@ public class Events {
      * @param time      耗时
      * @param params    参数
      */
-    public static DefaultErrorEvent slowSqlEvent(String sql, long time, String... params){
+    public static DefaultNoticeEvent slowSqlEvent(String sql, long time, String... params){
         Map<String,String> argsMap = new LinkedHashMap<>(3);
         argsMap.put("SQL", sql);
         argsMap.put("SQL参数", Arrays.deepToString(params));
@@ -97,7 +97,7 @@ public class Events {
      * @param time      耗时
      * @param params    参数
      */
-    public static DefaultErrorEvent slowTaskEvent(String taskName, long time, String... params){
+    public static DefaultNoticeEvent slowTaskEvent(String taskName, long time, String... params){
         Map<String,String> argsMap = new LinkedHashMap<>(3);
         argsMap.put("任务名称", taskName);
         argsMap.put("任务参数", Arrays.deepToString(params));
@@ -114,8 +114,8 @@ public class Events {
      * @param queueTasks    任务队列
      * @param taskNumMap    队列中任务分布
      */
-    public static DefaultErrorEvent poolTaskHeapUpEvent(String poolName, Integer totalThread,
-                                                        Integer usedThread, Integer queueTasks, Map<String,Integer> taskNumMap){
+    public static DefaultNoticeEvent poolTaskHeapUpEvent(String poolName, Integer totalThread,
+                                                         Integer usedThread, Integer queueTasks, Map<String,Integer> taskNumMap){
         boolean flag = taskNumMap == null || taskNumMap.size() == 0;
         Map<String,String> argsMap = new LinkedHashMap<>(4 + (flag ? 0 : taskNumMap.size() + 1));
         argsMap.put("线程池名", poolName);
