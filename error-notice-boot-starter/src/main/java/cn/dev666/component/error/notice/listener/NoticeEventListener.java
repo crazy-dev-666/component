@@ -15,7 +15,6 @@ import org.springframework.core.env.Environment;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 
 import java.lang.reflect.ParameterizedType;
 import java.time.Duration;
@@ -27,16 +26,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class NoticeEventListener implements InitializingBean, ApplicationContextAware {
 
-    //累计产生1w次错误后，进行清理操作
+    //累计产生1w次事件后，进行清理操作
     private static final int CLEAN_THRESHOLD = 10000;
 
-    //最多保留错误数上限。
+    //最多保留事件数上限。
     private static final int ERROR_THRESHOLD = 10000;
 
     private AtomicInteger cleanCount = new AtomicInteger();
 
-    //实时错误信息。
-    private Map<String, ErrorInfo> errorInfoMap = new HashMap<>();
+    //实时事件信息。
+    private Map<String, NoticeEventInfo> errorInfoMap = new HashMap<>();
 
     private ApplicationContext applicationContext;
 
@@ -117,9 +116,9 @@ public class NoticeEventListener implements InitializingBean, ApplicationContext
         }
 
         String uniqueKey = getKey(event);
-        ErrorInfo info;
+        NoticeEventInfo info;
         synchronized (uniqueKey.intern()) {
-            info = errorInfoMap.computeIfAbsent(uniqueKey, ErrorInfo::new);
+            info = errorInfoMap.computeIfAbsent(uniqueKey, NoticeEventInfo::new);
         }
 
         long now = event.getTimestamp();
@@ -230,15 +229,15 @@ public class NoticeEventListener implements InitializingBean, ApplicationContext
     }
 
     @Getter
-    private class ErrorInfo {
+    private class NoticeEventInfo {
 
-        private final String uniqueErrorCode;
+        private final String uniqueCode;
         private long total;
         private int intervalTotal;
         private long lastTime;
 
-        private ErrorInfo(String uniqueErrorCode) {
-            this.uniqueErrorCode = uniqueErrorCode;
+        private NoticeEventInfo(String uniqueCode) {
+            this.uniqueCode = uniqueCode;
             this.total = 0;
             this.intervalTotal = 0;
         }
@@ -255,9 +254,10 @@ public class NoticeEventListener implements InitializingBean, ApplicationContext
                     String interval = null;
                     if (lastTime > 0){
                         interval = format(Duration.ofMillis(now - lastTime));
+                        frequency = interval + "内累计 "+ intervalTotal + 1  + " 次出现（总累计 " + total + " 次出现）";
+                    }else {
+                        frequency = "首次出现（总累计 " + total + " 次出现）";
                     }
-
-                    frequency = (StringUtils.hasText(interval) ? interval + "内" : "") + "首次出现（总累计 " + total + " 次出现）";
 
                     intervalTotal = 1;
                     lastTime = now;
@@ -294,13 +294,13 @@ public class NoticeEventListener implements InitializingBean, ApplicationContext
 
             //达到清理数量阈值
             if (errorInfoMap.size() > ERROR_THRESHOLD){
-                //按上次发送报警邮件时间，清理最老的。
-                List<ErrorInfo> list = new ArrayList<>(errorInfoMap.values());
-                list.sort(Comparator.comparing(ErrorInfo::getLastTime));
-                List<ErrorInfo> removeList = list.subList(0, errorInfoMap.size() - ERROR_THRESHOLD);
-                for (ErrorInfo errorInfo : removeList) {
-                    synchronized (errorInfo.uniqueErrorCode.intern()) {
-                        errorInfoMap.remove(errorInfo.uniqueErrorCode);
+                //按上次发送通知时间，清理最老的。
+                List<NoticeEventInfo> list = new ArrayList<>(errorInfoMap.values());
+                list.sort(Comparator.comparing(NoticeEventInfo::getLastTime));
+                List<NoticeEventInfo> removeList = list.subList(0, errorInfoMap.size() - ERROR_THRESHOLD);
+                for (NoticeEventInfo noticeEventInfo : removeList) {
+                    synchronized (noticeEventInfo.uniqueCode.intern()) {
+                        errorInfoMap.remove(noticeEventInfo.uniqueCode);
                     }
                 }
             }
