@@ -23,7 +23,7 @@ public class RequestLogAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "request.log", value = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "dev666.request.log", value = "enabled", havingValue = "true", matchIfMissing = true)
     public LogFilter logFilter() {
         LogRequestLevel requestLevel;
         LogResponseLevel responseLevel;

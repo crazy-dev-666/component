@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -73,12 +74,14 @@ public class EventNoticeAutoConfiguration {
 
 
     @Bean
+    @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "dev666.event.notice.email", value = "enabled", havingValue = "true")
     public DefaultMailChannel mailChannel(JavaMailSender mailSender){
         return new DefaultMailChannel(mailSender, mailFrom, properties.getEmail());
     }
 
     @Bean
+    @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "dev666.event.notice.ding-ding", value = "enabled", havingValue = "true")
     public DefaultDingDingChannel DingDingChannel(){
         if (objectMapper == null){
@@ -88,6 +91,7 @@ public class EventNoticeAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "dev666.event.notice.work-wx", value = "enabled", havingValue = "true")
     public DefaultWorkWxChannel WorkWxChannel(){
         if (objectMapper == null){
@@ -97,6 +101,7 @@ public class EventNoticeAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "dev666.event.notice", value = "warn-log", havingValue = "true")
     public WarnLogChannel warnLogChannel(){
         return new WarnLogChannel();

@@ -15,7 +15,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Set;
 
 @Data
-@ConfigurationProperties(prefix = "request.log")
+@ConfigurationProperties(prefix = "dev666.request.log")
 public class RequestLogProperties {
     /**
      * 是否启用记录日志功能

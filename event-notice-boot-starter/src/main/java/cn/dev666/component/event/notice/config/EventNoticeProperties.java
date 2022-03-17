@@ -88,6 +88,9 @@ public class EventNoticeProperties {
 
     @Data
     public static class WorkWxProperties {
+
+        private boolean enabled = true;
+
         /**
          * 通知链接
          */
