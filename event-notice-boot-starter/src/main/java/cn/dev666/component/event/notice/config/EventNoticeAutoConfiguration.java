@@ -35,9 +35,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 @ConditionalOnProperty(prefix = "dev666.event.notice", value = "enabled", havingValue = "true", matchIfMissing = true)
 public class EventNoticeAutoConfiguration {
 
-    @Value("${spring.mail.username}")
-    private String mailFrom;
-
     @Value("${spring.application.name}")
     private String applicationName;
 
@@ -77,6 +74,7 @@ public class EventNoticeAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "dev666.event.notice.email", value = "enabled", havingValue = "true")
     public DefaultMailChannel mailChannel(JavaMailSender mailSender){
+        String mailFrom = environment.getProperty("spring.mail.username");
         return new DefaultMailChannel(mailSender, mailFrom, properties.getEmail());
     }
 
