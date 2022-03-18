@@ -26,16 +26,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class NoticeEventListener implements InitializingBean, ApplicationContextAware {
 
-    //累计产生1w次事件后，进行清理操作
+    //累计产生10000次事件后，进行清理操作
     private static final int CLEAN_THRESHOLD = 10000;
-
-    //最多保留事件数上限。
-    private static final int ERROR_THRESHOLD = 10000;
 
     private AtomicInteger cleanCount = new AtomicInteger();
 
     //实时事件信息。
-    private Map<String, NoticeEventInfo> errorInfoMap = new HashMap<>();
+    private Map<String, NoticeEventInfo> eventInfoMap = new HashMap<>();
 
     private ApplicationContext applicationContext;
 
@@ -118,7 +115,7 @@ public class NoticeEventListener implements InitializingBean, ApplicationContext
         String uniqueKey = getKey(event);
         NoticeEventInfo info;
         synchronized (uniqueKey.intern()) {
-            info = errorInfoMap.computeIfAbsent(uniqueKey, NoticeEventInfo::new);
+            info = eventInfoMap.computeIfAbsent(uniqueKey, NoticeEventInfo::new);
         }
 
         long now = event.getTimestamp();
@@ -244,7 +241,7 @@ public class NoticeEventListener implements InitializingBean, ApplicationContext
         }
 
         private DealEventResult dealEvent(long now) {
-            boolean overInterval = false;
+            boolean overInterval;
             boolean overThreshold = false;
             String frequency = "";
 
@@ -286,14 +283,14 @@ public class NoticeEventListener implements InitializingBean, ApplicationContext
             cleanCount.set(0);
 
             //达到清理数量阈值
-            if (errorInfoMap.size() > ERROR_THRESHOLD){
+            if (eventInfoMap.size() > properties.getMaxEventThreshold()){
                 //按上次发送通知时间，清理最老的。
-                List<NoticeEventInfo> list = new ArrayList<>(errorInfoMap.values());
+                List<NoticeEventInfo> list = new ArrayList<>(eventInfoMap.values());
                 list.sort(Comparator.comparing(NoticeEventInfo::getLastTime));
-                List<NoticeEventInfo> removeList = list.subList(0, errorInfoMap.size() - ERROR_THRESHOLD);
+                List<NoticeEventInfo> removeList = list.subList(0, eventInfoMap.size() - properties.getMaxEventThreshold());
                 for (NoticeEventInfo noticeEventInfo : removeList) {
                     synchronized (noticeEventInfo.uniqueCode.intern()) {
-                        errorInfoMap.remove(noticeEventInfo.uniqueCode);
+                        eventInfoMap.remove(noticeEventInfo.uniqueCode);
                     }
                 }
             }

@@ -21,10 +21,13 @@ public class EventNoticeProperties {
     @DurationUnit(ChronoUnit.MINUTES)
     private Duration interval = Duration.ofMinutes(60);
     /**
-     * 发送阈值，当间隔时间内，错误次数突破阈值时，再次发送。，默认5次
+     * 发送阈值，当间隔时间内，错误次数突破阈值时，再次发送，默认5次
      */
     private Integer threshold = 5;
-
+    /**
+     * 保留事件类型的数量上限，避免过多导致内存溢出，默认1000
+     */
+    private Integer maxEventThreshold = 1000;
     /**
      * 避免发送过于频繁，将报警信息进行聚合发送，默认1分钟
      */
@@ -35,7 +38,6 @@ public class EventNoticeProperties {
      *  不发送提醒的环境集合
      */
     private Set<String> ignoreProfiles = Collections.emptySet();
-
     /**
      * 系统资源监控配置
      */
