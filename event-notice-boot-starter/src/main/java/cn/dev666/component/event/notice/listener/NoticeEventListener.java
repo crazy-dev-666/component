@@ -240,42 +240,35 @@ public class NoticeEventListener implements InitializingBean, ApplicationContext
             this.uniqueCode = uniqueCode;
             this.total = 0;
             this.intervalTotal = 0;
+            this.lastTime = 0;
         }
 
         private DealEventResult dealEvent(long now) {
-            boolean intervalFirst = false;
+            boolean overInterval = false;
             boolean overThreshold = false;
             String frequency = "";
 
             synchronized(this) {
                 total++;
-                //间隔大于设定 重置
-                if (lastTime + properties.getInterval().toMillis() < now) {
-                    String interval = null;
-                    if (lastTime > 0){
-                        interval = format(Duration.ofMillis(now - lastTime));
-                        frequency = interval + "内累计 "+ intervalTotal + 1  + " 次出现（总累计 " + total + " 次出现）";
-                    }else {
-                        frequency = "首次出现（总累计 " + total + " 次出现）";
-                    }
-
-                    intervalTotal = 1;
-                    lastTime = now;
-                    intervalFirst = true;
+                if (lastTime == 0){
+                    overInterval = true;
                 }else {
                     intervalTotal++;
-                    overThreshold = intervalTotal >= properties.getThreshold();
-                    //间隔内累计次数达到阈值 重置
-                    if (overThreshold) {
-                        frequency = format(Duration.ofMillis(now - lastTime)) + "内累计 " + intervalTotal + " 次出现（总累计 " + total + " 次出现）";
-                        intervalTotal = 1;
-                        lastTime = now;
-                    }
+                    overInterval = lastTime + properties.getInterval().toMillis() < now;
+                    overThreshold = !overInterval && intervalTotal >= properties.getThreshold();
                 }
 
+                if (overInterval || overThreshold){
+                    if (lastTime == 0){
+                        frequency = "首次出现";
+                    }else {
+                        frequency = format(Duration.ofMillis(now - lastTime)) + "内累计 " + intervalTotal + " 次出现（总累计 " + total + " 次出现）";
+                    }
+                    intervalTotal = 0;
+                    lastTime = now;
+                }
             }
-
-            return new DealEventResult(intervalFirst || overThreshold, frequency);
+            return new DealEventResult(overInterval || overThreshold, frequency);
         }
 
         private String format(Duration duration) {
