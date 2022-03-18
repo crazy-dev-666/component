@@ -66,11 +66,6 @@ public class EventNoticeProperties {
      */
     private DingDingProperties dingDing;
 
-    /**
-     * 公众号通知方式配置
-     */
-    private WxProperties wx;
-
     @Data
     public static class EmailProperties {
 
@@ -129,11 +124,6 @@ public class EventNoticeProperties {
          * @所有人标志
          */
         private boolean atAll = false;
-    }
-
-    @Data
-    public static class WxProperties {
-
     }
 
     @Data
