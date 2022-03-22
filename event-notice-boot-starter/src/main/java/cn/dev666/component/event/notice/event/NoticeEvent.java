@@ -40,9 +40,9 @@ public abstract class NoticeEvent extends ApplicationEvent {
         return sb;
     }
 
-    public StringBuilder getContentWithApplcationInfo(){
-        StringBuilder sb = getContent();
-        sb.append("\n ").append(DataUtils.getApplicationInfo());
+    public StringBuilder getContentWithApplicationInfo(){
+        StringBuilder sb = new StringBuilder(DataUtils.getApplicationInfo());
+        sb.append("\n ").append(getContent());
         return sb;
     }
 

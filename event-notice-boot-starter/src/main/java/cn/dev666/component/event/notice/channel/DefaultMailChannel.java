@@ -23,7 +23,7 @@ public class DefaultMailChannel implements AggregationChannel<DefaultNoticeEvent
 
     @Override
     public boolean notice(DefaultNoticeEvent event) {
-        return sendNotice(event.getTitle(), event.getContentWithApplcationInfo().toString());
+        return sendNotice(event.getTitle(), event.getContentWithApplicationInfo().toString());
     }
 
     @Override

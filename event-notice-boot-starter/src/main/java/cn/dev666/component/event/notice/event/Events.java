@@ -41,7 +41,7 @@ public class Events {
     public static DefaultNoticeEvent exceptionEvent(String url, Exception e){
         Map<String,String> argsMap = new LinkedHashMap<>(2);
         argsMap.put("请求URL", url);
-        argsMap.put("异常详情", getStackTrace(e));
+        argsMap.put("异常信息", e.getMessage());
         return newEvent("系统异常", e.getMessage(), argsMap);
     }
 

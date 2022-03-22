@@ -27,7 +27,7 @@ public class DefaultDingDingChannel implements AggregationChannel<DefaultNoticeE
 
     @Override
     public boolean notice(DefaultNoticeEvent event) throws IOException {
-        String content = "### " + event.getTitle() + " \n\n " + event.getContentWithApplcationInfo();
+        String content = "### " + event.getTitle() + " \n\n " + event.getContentWithApplicationInfo();
         content = content.replaceAll("\\n", "\n- ");
         return sendNotice(event.getTitle(), content);
     }
