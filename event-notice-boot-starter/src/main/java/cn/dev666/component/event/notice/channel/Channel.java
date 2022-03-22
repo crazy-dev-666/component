@@ -8,4 +8,6 @@ import cn.dev666.component.event.notice.event.NoticeEvent;
 public interface Channel<E extends NoticeEvent> {
 
     boolean notice(E event) throws Exception;
+
+
 }

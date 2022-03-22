@@ -11,4 +11,5 @@ import java.util.List;
 public interface AggregationChannel<E extends NoticeEvent> extends Channel<E> {
 
     boolean notice(List<E> list) throws Exception;
+
 }

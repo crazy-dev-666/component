@@ -18,11 +18,6 @@ public class DefaultNoticeEvent extends NoticeEvent {
     }
 
     @Override
-    public String getTitle() {
-        return getScene() + " 报警，错误码：" + getUniqueCode();
-    }
-
-    @Override
     public StringBuilder getContent() {
         StringBuilder sb = super.getContent();
         if (argsMap != null && argsMap.size() > 0) {

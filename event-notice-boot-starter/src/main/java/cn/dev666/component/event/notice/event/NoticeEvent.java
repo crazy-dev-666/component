@@ -1,6 +1,5 @@
 package cn.dev666.component.event.notice.event;
 
-import cn.dev666.component.event.notice.utils.DataUtils;
 import org.springframework.context.ApplicationEvent;
 
 import java.text.SimpleDateFormat;
@@ -31,7 +30,9 @@ public abstract class NoticeEvent extends ApplicationEvent {
         this.result = result;
     }
 
-    public abstract String getTitle();
+    public String getTitle(){
+        return getScene() + " 报警";
+    }
 
     public StringBuilder getContent(){
         String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(getTimestamp()));
@@ -39,13 +40,6 @@ public abstract class NoticeEvent extends ApplicationEvent {
         sb.append("\n 通知时间 ：").append(time).append("\n 通知频次 ：").append(result.getFrequency());
         return sb;
     }
-
-    public StringBuilder getContentWithApplicationInfo(){
-        StringBuilder sb = new StringBuilder(DataUtils.getApplicationInfo());
-        sb.append("\n ").append(getContent());
-        return sb;
-    }
-
 
     public String getScene() {
         return scene;

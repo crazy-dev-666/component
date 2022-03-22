@@ -3,6 +3,8 @@ package cn.dev666.component.event.notice.utils;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.text.MessageFormat;
+import java.util.HashMap;
+import java.util.Map;
 
 public class DataUtils {
 
@@ -31,6 +33,14 @@ public class DataUtils {
 
     public static String getApplicationInfo(){
         return getApplicationInfo(APPLICATION_TEMPLATE);
+    }
+
+    public static Map<String, String> getInfo(){
+        Map<String, String> map = new HashMap<>();
+        map.put("localIp", localIp);
+        map.put("processId", processId);
+        map.put("applicationName", applicationName);
+        return map;
     }
 
     public static String getApplicationInfo(String template){

@@ -41,7 +41,7 @@ public class Events {
     public static DefaultNoticeEvent exceptionEvent(String url, Exception e){
         Map<String,String> argsMap = new LinkedHashMap<>(2);
         argsMap.put("请求URL", url);
-        argsMap.put("异常信息", e.getMessage());
+        argsMap.put("异常详情", getStackTrace(e, 1024));
         return newEvent("系统异常", e.getMessage(), argsMap);
     }
 
@@ -136,10 +136,13 @@ public class Events {
     /**
      * 获取堆栈信息
      */
-    private static String getStackTrace(Throwable throwable){
+    private static String getStackTrace(Throwable throwable, int maxSize){
         StringWriter sw = new StringWriter();
         try (PrintWriter pw = new PrintWriter(sw)) {
             throwable.printStackTrace(pw);
+            if (maxSize > 0) {
+                return sw.toString().substring(0, maxSize);
+            }
             return sw.toString();
         }
     }
